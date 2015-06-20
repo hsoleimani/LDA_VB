@@ -502,7 +502,7 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 		vblda_var* var, int d, int test){
 
 	int n, j, variter, w;
-	double c, phisum, temp, cphi;
+	double c, phisum, temp, cphi, maxval;
 	double varlkh, prev_varlkh, conv;
 
 	prev_varlkh = -1e100;
@@ -519,9 +519,17 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 		w = corpus->docs[d].words[n];
 		c = (double) corpus->docs[d].counts[n];
 		phisum = 0.0;
+		maxval = -1e100l;
 		for (j = 0; j < model->m; j++){
-			var->phi[n][j] = model->expElogbeta[j][w];
-			phisum +=  var->phi[n][j];
+			//var->phi[n][j] = model->expElogbeta[j][w];
+			//phisum +=  var->phi[n][j];
+			var->phi[n][j] = model->Elogbeta[j][w];
+			if (var->phi[n][j] > maxval)	maxval = var->phi[n][j];
+		}
+		phisum = 0.0;
+		for (j = 0; j < model->m; j++){
+			var->phi[n][j] = exp(var->phi[n][j] - maxval);
+			phisum += var->phi[n][j];
 		}
 		for (j = 0; j < model->m; j++){
 			var->phi[n][j] /= phisum;
@@ -538,10 +546,19 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 			c = (double) corpus->docs[d].counts[n];
 
 			phisum = 0.0;
+			maxval = -1e100;
 			for (j = 0; j < model->m; j++){
 				var->oldphi[j] = var->phi[n][j];
 
-				var->phi[n][j] = exp(gsl_sf_psi(var->gamma[j]))*model->expElogbeta[j][w];
+				//var->phi[n][j] = exp(gsl_sf_psi(var->gamma[j]))*model->expElogbeta[j][w];
+				//phisum += var->phi[n][j];
+				var->phi[n][j] = gsl_sf_psi(var->gamma[j]) + model->Elogbeta[j][w];
+				if (var->phi[n][j] > maxval)	maxval = var->phi[n][j];
+
+			}
+			phisum = 0.0;
+			for (j = 0; j < model->m; j++){
+				var->phi[n][j] = exp(var->phi[n][j] - maxval);
 				phisum += var->phi[n][j];
 			}
 			for (j = 0; j < model->m; j++){
