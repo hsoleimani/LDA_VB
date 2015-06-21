@@ -1,14 +1,14 @@
 import os
 import numpy as np
 
-codepath = 'lda_vb'
+codepath = './lda_vb'
 dirpath = 'vblda'
 
 
 seed = 1399677451
 np.random.seed(seed)
 
-M = # number of topics 
+M =  # number of topics 
 
 alpha = 1.0/float(M)
 nu = 0.01;
