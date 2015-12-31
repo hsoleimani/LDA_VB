@@ -42,13 +42,14 @@ int main(int argc, char* argv[])
         {
         	strcpy(testcorpus,argv[4]);
         	ntopics = atoi(argv[5]);
-			strcpy(dir,argv[6]);
-			alpha = atof(argv[7]);
-			nu = atof(argv[8]);
-			TAU = atof(argv[9]);
-			KAPPA = atof(argv[10]);
-			BATCHSIZE = atoi(argv[11]);
-			train_stochastic(corpus_file, testcorpus, ntopics, dir, alpha, nu);
+        	strcpy(init,argv[6]);
+			strcpy(dir,argv[7]);
+			alpha = atof(argv[8]);
+			nu = atof(argv[9]);
+			TAU = atof(argv[10]);
+			KAPPA = atof(argv[11]);
+			BATCHSIZE = atoi(argv[12]);
+			train_stochastic(corpus_file, testcorpus, ntopics, init, dir, alpha, nu);
 
 			gsl_rng_free (r);
             return(0);
@@ -82,7 +83,8 @@ int main(int argc, char* argv[])
 
 
 
-void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir, double alpha, double nu)
+void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* start,
+		char* dir, double alpha, double nu)
 {
     FILE* lhood_fptr;
     FILE* fp;
@@ -122,7 +124,15 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 	var = new_vblda_var(model, maxlen);
 	ss = new_vblda_ss(model);
 
-	random_initialize_model(model, corpus, ss, var);
+    if (strcmp(start, "seeded")==0){
+    	printf("seeded\n");
+		corpus_initialize_model(model, corpus, ss, var);
+    }
+    else{// (strcmp(start, "random")==0){
+    	printf("random\n");
+		random_initialize_model(model, corpus, ss, var);
+    }
+
 
     //theta
     theta = malloc(sizeof(double*)*model->m);
@@ -168,7 +178,7 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 
     time(&t1);
 	prev_lhood = -1e100;
-
+	conv = 1e5;
 	do{
 		rho = pow(1.0/(iteration+TAU), KAPPA);
 
@@ -176,13 +186,14 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 			// choose a document;
 			d = floor(gsl_rng_uniform(r) * (corpus->ndocs-EPS));
 
-			doclkh = doc_inference(corpus, model, ss, var, d, 0);
+			doclkh = doc_inference(&(corpus->docs[d]), model, ss, var, d, 0);
 		}
 		// update lambda
 		for (j = 0; j < model->m; j++){
 			var->summu[j] = (1-rho)*var->summu[j] + rho*((double)model->n*model->nu)
 							+ rho*((double)corpus->ndocs*ss->sumt[j])/((double)BATCHSIZE);
 
+			temp = gsl_sf_psi(var->summu[j]);
 			for (n = 0; n < model->n; n++){
 
 				var->mu[j][n] = (1-rho)*var->mu[j][n] + rho*(model->nu)
@@ -190,7 +201,7 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 
 				ss->t[j][n] = 0.0;
 
-				model->Elogbeta[j][n] = (gsl_sf_psi(var->mu[j][n])-gsl_sf_psi(var->summu[j]));
+				model->Elogbeta[j][n] = (gsl_sf_psi(var->mu[j][n])-temp);
 				model->expElogbeta[j][n] = exp(model->Elogbeta[j][n]);
 			}
 			ss->sumt[j] = 0.0;
@@ -203,7 +214,7 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 			lhood = 0.0;
 			for (d = 0; d < test_corpus->ndocs; d++){
 
-				doclkh = doc_inference(test_corpus, model, ss, var, d, 1);
+				doclkh = doc_inference(&(test_corpus->docs[d]), model, ss, var, d, 1);
 
 				for (j = 0; j < model->m; j++){
 					test_theta[j][d] = var->gamma[j]/var->sumgamma;
@@ -249,7 +260,7 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 	lhood = 0.0;
 	for (d = 0; d < test_corpus->ndocs; d++){
 
-		doclkh = doc_inference(test_corpus, model, ss, var, d, 1);
+		doclkh = doc_inference(&(test_corpus->docs[d]), model, ss, var, d, 1);
 
 		for (j = 0; j < model->m; j++){
 			test_theta[j][d] = var->gamma[j]/var->sumgamma;
@@ -284,7 +295,7 @@ void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir,
 
 	for (d = 0; d < corpus->ndocs; d++){
 
-		doclkh = doc_inference(corpus, model, ss, var, d, 1);
+		doclkh = doc_inference(&(corpus->docs[d]), model, ss, var, d, 1);
 
 		for (j = 0; j < model->m; j++){
 			theta[j][d] = var->gamma[j]/var->sumgamma;
@@ -320,7 +331,7 @@ void train(char* dataset, int ntopics, char* start, char* dir, double alpha, dou
     char filename[100];
     int iteration;
 	double lhood, prev_lhood, conv, doclkh;
-	double y;
+	double y, temp;
 	int d, n, j;
 	int maxlen;
     vblda_corpus* corpus;
@@ -347,6 +358,15 @@ void train(char* dataset, int ntopics, char* start, char* dir, double alpha, dou
 		ss = new_vblda_ss(model);
 
 		random_initialize_model(model, corpus, ss, var);
+
+    }
+    if (strcmp(start, "seeded")==0){
+    	printf("random\n");
+    	model = new_vblda_model(ntopics, corpus->nterms, corpus->ndocs, alpha, nu);
+    	var = new_vblda_var(model, maxlen);
+		ss = new_vblda_ss(model);
+
+		corpus_initialize_model(model, corpus, ss, var);
 
     }
     else if (strcmp(start, "loadbeta")==0){ //not updated
@@ -414,7 +434,7 @@ void train(char* dataset, int ntopics, char* start, char* dir, double alpha, dou
 		lhood = 0.0;
 		for (d = 0; d < corpus->ndocs; d++){
 
-			doclkh = doc_inference(corpus, model, ss, var, d, 0);
+			doclkh = doc_inference(&(corpus->docs[d]), model, ss, var, d, 0);
 
 			lhood += doclkh;
 
@@ -448,13 +468,14 @@ void train(char* dataset, int ntopics, char* start, char* dir, double alpha, dou
 		}else{
 			for (j = 0; j < model->m; j++){
 				var->summu[j] = (double)model->n*model->nu + ss->sumt[j];
+				temp = gsl_sf_psi(var->summu[j]);
 				for (n = 0; n < model->n; n++){
 					var->mu[j][n] = model->nu + ss->t[j][n];
 
 					ss->t[j][n] = 0.0;
 
 					lhood += lgamma(var->mu[j][n]);
-					model->Elogbeta[j][n] = (gsl_sf_psi(var->mu[j][n])-gsl_sf_psi(var->summu[j]));
+					model->Elogbeta[j][n] = (gsl_sf_psi(var->mu[j][n])-temp);
 					model->expElogbeta[j][n] = exp(model->Elogbeta[j][n]);
 				}
 				lhood -= lgamma(var->summu[j]);
@@ -498,7 +519,7 @@ void train(char* dataset, int ntopics, char* start, char* dir, double alpha, dou
 	write_vblda_model(filename, model, var);
 }
 
-double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
+double doc_inference(document* doc, vblda_model* model, vblda_ss* ss,
 		vblda_var* var, int d, int test){
 
 	int n, j, variter, w;
@@ -515,9 +536,9 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 		var->gamma[j] = model->alpha;
 		var->sumgamma += var->gamma[j];
 	}
-	for (n = 0; n < corpus->docs[d].length; n++){
-		w = corpus->docs[d].words[n];
-		c = (double) corpus->docs[d].counts[n];
+	for (n = 0; n < doc->length; n++){
+		w = doc->words[n];
+		c = (double) doc->counts[n];
 		phisum = 0.0;
 		maxval = -1e100l;
 		for (j = 0; j < model->m; j++){
@@ -533,6 +554,7 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 		}
 		for (j = 0; j < model->m; j++){
 			var->phi[n][j] /= phisum;
+			//var->phi[n][j] = 1.0/((double)model->m);
 			cphi = c*var->phi[n][j];
 			var->gamma[j] += cphi;
 			var->sumgamma += cphi;
@@ -541,9 +563,9 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 
 	do{
 		varlkh = 0.0;
-		for (n = 0; n < corpus->docs[d].length; n++){
-			w = corpus->docs[d].words[n];
-			c = (double) corpus->docs[d].counts[n];
+		for (n = 0; n < doc->length; n++){
+			w = doc->words[n];
+			c = (double) doc->counts[n];
 
 			phisum = 0.0;
 			maxval = -1e100;
@@ -591,9 +613,9 @@ double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
 	}while((variter < MAXITER) && (conv > CONVERGED));
 
 	if (test == 0){
-		for (n = 0; n < corpus->docs[d].length; n++){
-			w = corpus->docs[d].words[n];
-			c = (double) corpus->docs[d].counts[n];
+		for (n = 0; n < doc->length; n++){
+			w = doc->words[n];
+			c = (double) doc->counts[n];
 			for (j = 0; j < model->m; j++){
 				cphi = c*var->phi[n][j];
 				varlkh -= cphi*model->Elogbeta[j][w];
@@ -672,7 +694,7 @@ void test(char* dataset, char* model_name, char* dir)
 	lhood = 0.0;
 	for (d = 0; d < corpus->ndocs; d++){
 
-		doclkh = doc_inference(corpus, model, ss, var, d, 1);
+		doclkh = doc_inference(&(corpus->docs[d]), model, ss, var, d, 1);
 		lhood += doclkh;
 
 		for (j = 0; j < model->m; j++){
@@ -928,4 +950,45 @@ void random_initialize_model(vblda_model * model, vblda_corpus* corpus, vblda_ss
   	//free(nu);
 }
 
+void corpus_initialize_model(vblda_model * model, vblda_corpus* corpus, vblda_ss* ss, vblda_var* var){
+
+	int n, j, d, i, cnt;
+	int* docs = malloc(sizeof(int)*corpus->ndocs);
+	for (d = 0; d < corpus->ndocs; d++){
+		docs[d] = -1;
+	}
+
+	for (j = 0; j < model->m; j++){
+		var->summu[j] = 0.0;
+		for (n = 0; n < model->n; n++){
+			var->mu[j][n] = model->nu;
+			var->summu[j] += var->mu[j][n];
+		}
+
+		for (i = 0; i < 40; i++){
+			//choose a doc
+			cnt = 0;
+			do{
+				d = floor(gsl_rng_uniform(r)*corpus->ndocs);
+				if ((docs[d] ==- 1) || (cnt > 100)){
+					docs[d] = j;
+					break;
+				}
+				cnt += 1;
+			}while(1);
+
+			for (n = 0; n < corpus->docs[d].length; n++){
+				var->mu[j][corpus->docs[d].words[n]] += (double) corpus->docs[d].counts[n];
+				var->summu[j] += (double) corpus->docs[d].counts[n];
+			}
+		}
+		for (n = 0; n < model->n; n++){
+			var->mu[j][n] *= (double)corpus->ndocs/var->summu[j];
+		}
+		var->summu[j] = (double)corpus->ndocs;
+
+	}
+
+  	free(docs);
+}
 

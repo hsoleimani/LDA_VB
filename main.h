@@ -31,9 +31,10 @@ vblda_ss * new_vblda_ss(vblda_model* model);
 vblda_model* new_vblda_model(int ntopics, int nterms, int ndocs, double alpha, double nu);
 vblda_var * new_vblda_var(vblda_model* model, int maxlen);
 
-void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* dir, double alpha, double nu);
+void train_stochastic(char* dataset, char* test_dataset, int ntopics, char* start,
+		char* dir, double alpha, double nu);
 void train(char* dataset, int ntopics, char* start, char* dir, double alpha, double nu, char* model_name);
-double doc_inference(vblda_corpus* corpus, vblda_model* model, vblda_ss* ss,
+double doc_inference(document* doc, vblda_model* model, vblda_ss* ss,
 		vblda_var* var, int d, int test);
 void test(char* dataset, char* model_name, char* dir);
 
@@ -43,5 +44,5 @@ void write_vblda_model(char * root, vblda_model * model, vblda_var* var);
 vblda_corpus* read_data(const char* data_filename, int* maxlen);
 vblda_model* load_model(char* model_root, int ndocs);
 void random_initialize_model(vblda_model * model, vblda_corpus* corpus, vblda_ss* ss, vblda_var* var);
-
+void corpus_initialize_model(vblda_model * model, vblda_corpus* corpus, vblda_ss* ss, vblda_var* var);
 #endif /* MAIN_H_ */

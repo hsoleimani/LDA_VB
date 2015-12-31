@@ -23,7 +23,7 @@ if 1: # stochastic
 	kappa = 0.9;
 	BATCHSIZE = 10
 	s1 = np.random.randint(seed)
-	cmdtxt = codepath + ' ' + str(s1) + ' est_stoch ' + trdocs + ' ' + tdocs + ' ' + str(M) + ' '+ dirpath
+	cmdtxt = codepath + ' ' + str(s1) + ' est_stoch ' + trdocs + ' ' + tdocs + ' ' + str(M) + ' seeded '+ dirpath
 	cmdtxt += ' ' + str(alpha) + ' ' + str(nu) + ' ' + str(tau) + ' ' + str(kappa) + ' ' + str(BATCHSIZE)
 	print(cmdtxt)
 	os.system(cmdtxt)
@@ -32,7 +32,7 @@ if 1: # stochastic
 else: # batch
 	# train model
 	s1 = np.random.randint(seed)
-	cmdtxt = codepath + ' ' + str(s1) + ' est ' + trdocs + ' ' + str(M) + ' random '+ dirpath
+	cmdtxt = codepath + ' ' + str(s1) + ' est ' + trdocs + ' ' + str(M) + ' seeded '+ dirpath
 	cmdtxt += ' ' + str(alpha) + ' ' + str(nu)
 	print(cmdtxt)
 	os.system(cmdtxt)
